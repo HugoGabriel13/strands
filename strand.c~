@@ -1,0 +1,260 @@
+#include "strand.h"
+#include <stdlib.h>
+#include<string.h>
+#include <ctype.h>
+#include <stdio.h>
+
+
+
+
+
+strand_t * create_strand(FILE * dataFP, FILE * dictFP) {
+
+
+    //allocate memory for strand_t
+    strand_t* strand = (strand_t*)malloc(sizeof(strand_t));
+
+
+    //initialize the variables I'll be taken in from the txt file
+    //read the information from the txt file
+    //fscaf the numbers as in the txt file, inlcuded a newline for future fscaf
+    int rows, cols, wordLen;
+    fscanf(dataFP, "%d %d", &rows, &cols);
+    fscanf(dataFP, "%d\n",&wordLen);
+
+
+    //check if strand has something.
+    if (strand == NULL) {
+        printf("Nothing inside strand");
+        // Handle memory allocation failure
+        return NULL;
+    }
+
+    // Set rows, cols, wordLen
+    //we are getting the value for rows,cols,wordLen and the missing value of numWords from our struct
+    //we are just passing the value (int)
+    //for words and letters, they are not numbers so we have to allocate memory
+    strand->rows = rows;
+    strand->cols = cols;
+    strand->wordLen = wordLen;
+
+
+    // Allocate memory for words array
+    //MAX_WORDS is unknown, but for now it was arbitriarly set to 10,000
+    //ask about my memory allocation, is it correct?
+    //strand->words = malloc(10000000 * sizeof(char*));
+   
+
+
+    //Allocate memory for letters
+    strand->letters = malloc(rows * sizeof(char*));
+    //iterate through the cols the amount of rows there are
+
+    for(int i=0;i<rows;i++) { //allocate space row*col = amount
+        strand->letters[i] = malloc(cols*sizeof(char));
+    }
+
+    if (strand->letters == NULL) {
+        printf("Nothing inside strand-letters");
+        // Handle memory allocation failure
+        free(strand->letters);
+        free(strand);
+        return NULL;
+    }
+
+    //double for loop to scan all the letters
+    for (int i = 0; i < strand->rows; i++){
+        for (int j = 0; j < strand->cols; j++)
+        {
+            //fscanf, follow format from zybooks
+            fscanf(dataFP, "%c ",&strand->letters[i][j] );
+        }
+    }
+
+
+    populate_valid_words(strand,dictFP);//look for all the words in the
+
+
+    return strand;//return the strand
+}
+
+
+
+void populate_valid_words(strand_t *strand, FILE *dictFP) {
+    //  find_valid_words(strand, dictFP, &combo_good, valid_words,&words_in_dict, dictionary);
+    //initialize my variables I''l be using
+    int MAXWORDS=100000;
+    int Wordsfound = 0;
+    int size_word = 30;//words in english dictionary can't be bigger than 25 (fun fact)
+    char word[size_word];
+    strand->words = malloc(MAXWORDS *sizeof (char*)); //allocate space for now, will realloc latter on
+
+    //i already allocated significnat space for strand->words
+    //put the pointer for dictFP in forst element, just to make sure
+    rewind(dictFP);
+
+
+    while(fscanf(dictFP, "%s", word) ==1) {
+
+      word[strcspn(word,"\n")]='\0';
+      
+        if (strlen(word) == strand->wordLen) {//+1 for null character, i prefered not taking it off
+
+            if (find_valid_words(strand, word)) {
+
+                if(Wordsfound>=MAXWORDS){
+                    MAXWORDS*=2;
+                    strand->words = realloc(strand->words, MAXWORDS *sizeof (char*));
+                }
+
+
+                strand->words[Wordsfound] = malloc((strlen(word) + 1) * sizeof(char));
+                strcpy(strand->words[Wordsfound], word);
+		//		printf("%s strand->words[Wordsfound]",strand->words[Wordsfound]);
+		Wordsfound++;
+
+            }
+
+        }
+    }
+    strand->numWords=Wordsfound;
+}
+
+
+bool find_valid_words(strand_t *strand, char * word) { //calling the recursive function
+
+    bool retrouver=false; //boolean to see if it was found, set to false, we havent found it
+    //standart double for loop to give the recursive function all the imputs to worl (cols and rows)
+    for (int i = 0; i < strand->rows; i++) {
+        for (int j = 0; j < strand->cols; j++) {
+            if ((strand->letters[i][j] == word[0])) {
+                retrouver = retrouver || recursive(strand, i, j, word, 0);
+            }
+        }
+    }
+    return retrouver;//if statement did not change, we retrun default false
+}
+
+
+bool recursive(strand_t *strand, int x, int y, char*word ,int count) {
+    //x=row y=col
+    int newx;
+    int newy;
+
+    if (count == strlen(word)) {
+        return true;
+    }
+    //check the bounds (credits to  Owen that helped me to get this line)
+    if (x < 0 || x >= strand->rows || y < 0 || y >= strand->cols || strand->letters[x][y] != word[count]) {
+        return false;
+    }
+
+    //this will check recursively all the sides of if in bounds
+    int directions[8][2] = {{0,  -1},{0,  1},{-1, -1},{-1, 0},{-1,  1},{1,-1},{1,0},{1,1}};
+    bool found =false;
+
+    for (int i = 0; i < 8; i++) {
+        newx = x + directions[i][0];
+        newy = y + directions[i][1];
+        found = found || recursive(strand, newx, newy, word,count + 1); //after this we add 1 so recursive is call but to next spot
+    }
+    return found;
+}
+
+
+// REQUIRED
+//valid words are stored in the strand’s words array.(pending)
+//check if all the valid words we can create with those letters are in the strand
+
+
+// REQUIRED
+//nothing will be actually return since its void, we just print the grid basend in inputs from txt file
+void print_strand_matrix(strand_t * strand) {
+
+    // Check that the strand is not NULL so we can print all the grids
+    if (strand == NULL)
+    {
+        return;
+    }
+    //this will print the part on top of the grid, according to the amount of cols in .txt
+
+    printf("+---");
+    for (int i = 0; i < strand->cols-1; i++)
+    {
+        printf("+---");
+    }
+    printf("+\n");
+
+
+    for (int i = 0; i < strand->rows; i++)
+    {
+        //iterate 3 time if .txt is 3 for cols
+        for (int j = 0; j < strand->cols; j++)
+        { printf("| %c ", strand->letters[i][j]);
+        }
+        printf("|\n");
+
+        for (int r = 0; r < strand->cols; r++)
+        {
+            printf("+---");
+        }
+        printf("+\n");
+    }
+}
+
+// REQUIRED
+//free all my strand
+void free_strand(strand_t * strand) {
+
+    if (strand == NULL) {
+        return;  // Nothing to free
+    }
+
+    // Free each word in the words array
+    if (strand->words != NULL) {
+        for (int i = 0; i < strand->numWords; i++) {
+            free(strand->words[i]);
+        }
+        free(strand->words);
+    }
+
+    // Free each row in the letters array
+    if (strand->letters != NULL) {
+        for (int i = 0; i < strand->rows; i++) {
+            free(strand->letters[i]);
+        }
+        free(strand->letters);
+    }
+
+
+    for (int i = 0; i < strand->rows; i++) {
+    free(strand->matrix[i]);
+    }
+    free(strand->matrix);
+
+
+
+    for (int i = 0; i < strand->numWords; i++) {
+      free(strand->Wordsfound[i]);
+    }
+    free(strand->Wordsfound);
+
+ 
+    free(strand);//free the struct (strand)
+
+
+}
+
+
+bool is_word_in_strand(strand_t * strand, char * word) {
+    if (strand == NULL || word == NULL) {
+        return false;
+    }
+
+    for (int i=0;i<strand->numWords;i++) { //numwords was updated in another function for all the valid words in strand
+        if (strcmp(strand->words[i],word)==0) {
+            return true;
+        }
+    }
+    return false;
+}
